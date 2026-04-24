@@ -1,0 +1,23 @@
+{
+  "name": "cf_ai_docs_tutor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "ingest": "wrangler dev src/ingest.ts --test-scheduled",
+    "ingest:remote": "curl -X POST http://localhost:8787/__ingest",
+    "types": "wrangler types"
+  },
+  "dependencies": {
+    "agents": "^0.0.50",
+    "ai": "^4.0.0",
+    "workers-ai-provider": "^0.2.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250101.0",
+    "typescript": "^5.4.0",
+    "wrangler": "^4.84.1"
+  }
+}

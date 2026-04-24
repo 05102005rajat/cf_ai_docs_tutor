@@ -1,0 +1,47 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cf-ai-docs-tutor",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "assets": {
+    "directory": "public",
+    "binding": "ASSETS"
+  },
+
+  "ai": {
+    "binding": "AI"
+  },
+
+  "vectorize": [
+    {
+      "binding": "VECTORIZE",
+      "index_name": "docs-tutor-index"
+    }
+  ],
+
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "DocsTutorAgent",
+        "class_name": "DocsTutorAgent"
+      }
+    ]
+  },
+
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["DocsTutorAgent"]
+    }
+  ],
+
+  "browser": {
+    "binding": "BROWSER"
+  },
+
+  "observability": {
+    "enabled": true
+  }
+}
