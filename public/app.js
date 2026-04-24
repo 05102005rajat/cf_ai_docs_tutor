@@ -15,13 +15,48 @@ function getOrCreateSession() {
   return id;
 }
 
-function addMessage(role, content) {
+function prettyHost(url) {
+  try {
+    const u = new URL(url);
+    return u.hostname + u.pathname;
+  } catch {
+    return url;
+  }
+}
+
+function renderSources(container, sources) {
+  if (!sources || sources.length === 0) return;
+  const seen = new Set();
+  const block = document.createElement("div");
+  block.className = "sources";
+  const label = document.createElement("div");
+  label.className = "sources-label";
+  label.textContent = "Sources";
+  block.appendChild(label);
+  for (const s of sources) {
+    if (!s.url || seen.has(s.url)) continue;
+    seen.add(s.url);
+    const a = document.createElement("a");
+    a.href = s.url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.textContent = `[${s.n}] ${prettyHost(s.url)}`;
+    block.appendChild(a);
+  }
+  container.appendChild(block);
+}
+
+function addMessage(role, content, sources) {
   const div = document.createElement("div");
   div.className = `msg ${role}`;
-  div.textContent = content;
+  const body = document.createElement("div");
+  body.className = "msg-body";
+  body.textContent = content;
+  div.appendChild(body);
+  if (role === "assistant") renderSources(div, sources);
   messagesEl.appendChild(div);
   messagesEl.scrollTop = messagesEl.scrollHeight;
-  return div;
+  return { container: div, body };
 }
 
 async function loadHistory() {
@@ -30,7 +65,7 @@ async function loadHistory() {
     const data = await resp.json();
     for (const m of data.messages ?? []) {
       if (m.role === "user" || m.role === "assistant") {
-        addMessage(m.role, m.content);
+        addMessage(m.role, m.content, m.sources);
       }
     }
   } catch (err) {
@@ -56,9 +91,10 @@ form.addEventListener("submit", async (e) => {
       body: JSON.stringify({ message: text }),
     });
     const data = await resp.json();
-    thinking.textContent = data.reply ?? "(empty response)";
+    thinking.body.textContent = data.reply ?? "(empty response)";
+    renderSources(thinking.container, data.sources);
   } catch (err) {
-    thinking.textContent = `Error: ${err.message}`;
+    thinking.body.textContent = `Error: ${err.message}`;
   } finally {
     sendBtn.disabled = false;
     input.focus();
