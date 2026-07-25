@@ -27,8 +27,13 @@ export default {
       if (!expected || authHeader !== `Bearer ${expected}`) {
         return new Response("Unauthorized", { status: 401 });
       }
-      const count = await ingestDocs(env);
-      return Response.json({ ok: true, chunks_indexed: count });
+      const result = await ingestDocs(env);
+      return Response.json({
+        ok: result.failed.length === 0,
+        chunks_indexed: result.totalChunks,
+        pages_succeeded: result.succeeded.length,
+        pages_failed: result.failed,
+      });
     }
 
     // Chat endpoint — one Durable Object per session ID (cookie or query param).

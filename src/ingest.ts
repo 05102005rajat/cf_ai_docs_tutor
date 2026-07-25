@@ -22,15 +22,29 @@ const SEED_URLS = [
   "https://developers.cloudflare.com/browser-rendering/",
 ];
 
-export async function ingestDocs(env: Env): Promise<number> {
+export type IngestResult = {
+  totalChunks: number;
+  succeeded: string[];
+  // Pages that produced zero chunks, whether because the fetch/embed threw
+  // or because the fetched text was too short to be useful.
+  failed: { url: string; reason: string }[];
+};
+
+export async function ingestDocs(env: Env): Promise<IngestResult> {
   let totalChunks = 0;
+  const succeeded: string[] = [];
+  const failed: { url: string; reason: string }[] = [];
 
   for (const url of SEED_URLS) {
     try {
       const text = await fetchAsPlainText(url, env);
-      if (!text || text.length < 200) continue;
+      if (!text || text.length < 200) {
+        failed.push({ url, reason: "fetched text too short (page blocked, 404, or empty)" });
+        continue;
+      }
 
       const chunks = chunkText(text, CHUNK_SIZE, CHUNK_OVERLAP);
+      let urlChunks = 0;
 
       // Embed in small batches to stay under Workers AI request limits.
       for (let i = 0; i < chunks.length; i += 10) {
@@ -50,13 +64,23 @@ export async function ingestDocs(env: Env): Promise<number> {
 
         await env.VECTORIZE.upsert(vectors);
         totalChunks += batch.length;
+        urlChunks += batch.length;
+      }
+
+      if (urlChunks > 0) {
+        succeeded.push(url);
+      } else {
+        // Shouldn't happen (chunkText always returns >=1 chunk for non-empty
+        // text), but guard against silently reporting success with 0 chunks.
+        failed.push({ url, reason: "produced 0 chunks" });
       }
     } catch (err) {
       console.error(`Failed to ingest ${url}:`, err);
+      failed.push({ url, reason: err instanceof Error ? err.message : String(err) });
     }
   }
 
-  return totalChunks;
+  return { totalChunks, succeeded, failed };
 }
 
 async function fetchAsPlainText(url: string, env: Env): Promise<string> {

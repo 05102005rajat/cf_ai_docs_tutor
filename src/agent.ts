@@ -145,7 +145,16 @@ ${context}`;
     })) as { response: string };
 
     const reply = chatResp.response ?? "(no response)";
-    this.saveMessage("assistant", reply, sources);
-    return { reply, sources };
+
+    // Only surface sources the reply actually cites (e.g. via "[1]"). Greetings
+    // and small talk never cite anything per the system prompt, so they should
+    // render with no "Sources" footer instead of unrelated retrieved chunks.
+    const citedNumbers = new Set(
+      [...reply.matchAll(/\[(\d+)\]/g)].map((m) => Number(m[1])),
+    );
+    const citedSources = sources.filter((s) => citedNumbers.has(s.n));
+
+    this.saveMessage("assistant", reply, citedSources);
+    return { reply, sources: citedSources };
   }
 }

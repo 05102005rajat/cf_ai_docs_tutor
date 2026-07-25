@@ -98,7 +98,7 @@ curl -X POST https://cf-ai-docs-tutor.<your-subdomain>.workers.dev/__ingest \
   -H "Authorization: Bearer <your INGEST_TOKEN>"
 ```
 
-You should see `{"ok": true, "chunks_indexed": <N>}` where N is ~50–150 depending on seed size. Without `INGEST_TOKEN` set (or with a missing/wrong header), the endpoint returns `401 Unauthorized`.
+You should see `{"ok": true, "chunks_indexed": <N>, "pages_succeeded": <M>, "pages_failed": []}` where N is ~50–150 depending on seed size. `ok` is only `true` when every seed URL ingested; if any page was blocked, rate-limited, 404'd, or returned too little text, `ok` is `false` and `pages_failed` lists each failing URL with a reason — check that instead of assuming a full index just because the request didn't error. Without `INGEST_TOKEN` set (or with a missing/wrong header), the endpoint returns `401 Unauthorized`.
 
 ### 6. Chat
 
