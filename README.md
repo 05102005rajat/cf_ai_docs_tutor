@@ -1,14 +1,21 @@
 # cf_ai_docs_tutor
 
-A **RAG chat agent** that becomes an expert tutor for any developer documentation site. Point it at a set of docs URLs, it crawls them, stores embeddings in Cloudflare Vectorize, and answers questions with cited sources via Llama 3.3 on Workers AI.
+A **retrieval-augmented generation (RAG) chat agent** that turns any developer documentation site into a citation-backed Q&A tutor. It crawls a set of seed URLs, embeds chunked text with Workers AI's `bge-base-en-v1.5` model into Cloudflare Vectorize, and answers questions with inline `[n]` source citations via Llama 3.3 70B — all served from a single Cloudflare Worker with a SQLite-backed Durable Object holding per-session chat history.
 
 Seeded out-of-the-box with Cloudflare's own developer docs (Agents, Workers AI, Vectorize, Durable Objects, Workflows, Browser Rendering) — so it's a meta-demo: **an AI tutor for the platform it's built on.**
 
-Submitted for the Cloudflare Software Engineer Intern (Summer 2026) `cf_ai_` assignment.
+Originally built for the Cloudflare Software Engineer Intern (Summer 2026) `cf_ai_` take-home assignment; since hardened with a round of bug fixes (below).
 
 ## Live demo
 
 **https://cf-ai-docs-tutor.05102005rajat.workers.dev**
+
+## Highlights
+
+- **Full RAG pipeline on Cloudflare's edge stack, no external services.** Embeddings (`@cf/baai/bge-base-en-v1.5`, 768-dim, cosine similarity) and chat completion (`@cf/meta/llama-3.3-70b-instruct-fp8-fast`) both run on Workers AI; vectors live in Vectorize; session state lives in a Durable Object's built-in SQLite storage — one Worker, three bindings, zero third-party infra.
+- **Grounded, cited answers.** Every response is generated strictly from the top-5 Vectorize matches for the query, with inline `[1]`, `[2]`... citations that are cross-checked against what the model actually cited before being shown as sources — so a plain "hi" no longer drags 5 unrelated doc chunks into the UI.
+- **Custom crawl → chunk → embed → upsert pipeline** (`src/ingest.ts`): fetches and HTML-strips 12 seed pages across 6 Cloudflare products, chunks at 800 characters with 120-character overlap, embeds in batches of 10, and reports per-URL success/failure with a reason instead of one opaque `ok` flag.
+- **Hardened after an internal audit** that found and fixed five production-grade bugs in one pass: a crash on malformed/non-JSON chat POST bodies, a chat-history ordering bug in the SQLite query, an unauthenticated admin `/__ingest` endpoint (now gated behind a bearer-token secret), a UI mismatch that surfaced unrelated retrieved chunks as "sources," and a silently-swallowed per-page ingest failure that used to report `ok: true` on partial crawls.
 
 ## Architecture
 
@@ -21,7 +28,7 @@ Submitted for the Cloudflare Software Engineer Intern (Summer 2026) `cf_ai_` ass
 
 Other Cloudflare primitives used:
 - **Workers AI** for both the embedding model (`bge-base-en-v1.5`) and the chat LLM
-- **Vectorize** as the vector DB for retrieval
+- **Vectorize** as the vector DB for retrieval (768-dim vectors, cosine metric, top-5 nearest-neighbor query per chat turn)
 - **Browser Rendering** binding declared for richer crawls (the default ingest uses plain `fetch` + HTML stripping to stay within the free-tier quota)
 
 ```
