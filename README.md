@@ -84,13 +84,21 @@ npm run deploy
 
 ### 5. Seed the index
 
-The first deploy exposes an admin endpoint at `POST /__ingest`. Call it once to crawl the seed URLs in `src/ingest.ts` and populate Vectorize:
+The first deploy exposes an admin endpoint at `POST /__ingest`, gated behind a shared-secret bearer token so it can't be triggered anonymously. Set the secret once:
 
 ```bash
-curl -X POST https://cf-ai-docs-tutor.<your-subdomain>.workers.dev/__ingest
+npx wrangler secret put INGEST_TOKEN
+# paste a random token when prompted
 ```
 
-You should see `{"ok": true, "chunks_indexed": <N>}` where N is ~50–150 depending on seed size.
+Then call it once to crawl the seed URLs in `src/ingest.ts` and populate Vectorize:
+
+```bash
+curl -X POST https://cf-ai-docs-tutor.<your-subdomain>.workers.dev/__ingest \
+  -H "Authorization: Bearer <your INGEST_TOKEN>"
+```
+
+You should see `{"ok": true, "chunks_indexed": <N>}` where N is ~50–150 depending on seed size. Without `INGEST_TOKEN` set (or with a missing/wrong header), the endpoint returns `401 Unauthorized`.
 
 ### 6. Chat
 

@@ -45,7 +45,19 @@ export class DocsTutorAgent extends DurableObject<Env> {
     }
 
     if (request.method === "POST" && url.pathname === "/chat") {
-      const { message } = (await request.json()) as { message: string };
+      let body: unknown;
+      try {
+        body = await request.json();
+      } catch {
+        return Response.json({ error: "Request body must be valid JSON" }, { status: 400 });
+      }
+      const message = (body as { message?: unknown } | null)?.message;
+      if (typeof message !== "string" || message.trim().length === 0) {
+        return Response.json(
+          { error: "\"message\" must be a non-empty string" },
+          { status: 400 },
+        );
+      }
       const { reply, sources } = await this.handleMessage(message);
       return Response.json({ reply, sources });
     }
@@ -54,8 +66,14 @@ export class DocsTutorAgent extends DurableObject<Env> {
   }
 
   private loadHistory(): HistoryEntry[] {
+    // Take the most recent 50 messages (by id), then re-sort ascending so
+    // callers get them in chronological order.
     const rows = this.sql
-      .exec("SELECT role, content, sources FROM messages ORDER BY id ASC LIMIT 50")
+      .exec(
+        `SELECT role, content, sources FROM (
+           SELECT id, role, content, sources FROM messages ORDER BY id DESC LIMIT 50
+         ) ORDER BY id ASC`,
+      )
       .toArray() as Array<{ role: string; content: string; sources: string | null }>;
     return rows.map((r) => ({
       role: r.role as ChatMessage["role"],

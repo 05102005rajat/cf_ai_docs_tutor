@@ -9,6 +9,9 @@ export interface Env {
   BROWSER: Fetcher;
   ASSETS: Fetcher;
   DocsTutorAgent: DurableObjectNamespace;
+  // Shared secret required to call the /__ingest admin endpoint. Set via
+  // `wrangler secret put INGEST_TOKEN`. If unset, the endpoint is disabled.
+  INGEST_TOKEN?: string;
 }
 
 export default {
@@ -16,8 +19,14 @@ export default {
     const url = new URL(request.url);
 
     // Admin endpoint: seed the Vectorize index with Cloudflare docs.
-    // Hit this once after deploy to populate the index.
+    // Requires `Authorization: Bearer <INGEST_TOKEN>` — set the secret with
+    // `wrangler secret put INGEST_TOKEN` before this endpoint will work.
     if (url.pathname === "/__ingest" && request.method === "POST") {
+      const authHeader = request.headers.get("Authorization");
+      const expected = env.INGEST_TOKEN;
+      if (!expected || authHeader !== `Bearer ${expected}`) {
+        return new Response("Unauthorized", { status: 401 });
+      }
       const count = await ingestDocs(env);
       return Response.json({ ok: true, chunks_indexed: count });
     }
