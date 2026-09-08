@@ -14,6 +14,21 @@ type Source = { n: number; url: string };
 
 type HistoryEntry = ChatMessage & { sources?: Source[] };
 
+// Heuristic for the Llama degenerate-decoding failure mode: long runs of
+// short punctuation-heavy "words" with very little alphanumeric content.
+// A healthy reply is mostly letters; a garbled one is mostly quotes/periods.
+function isGarbledOutput(text: string): boolean {
+  if (!text || text.length < 5) return true;
+  const alnum = text.replace(/[^a-zA-Z0-9]/g, "").length;
+  if (alnum / text.length < 0.4) return true;
+  const words = text.trim().split(/\s+/);
+  if (words.length > 20) {
+    const distinctRatio = new Set(words).size / words.length;
+    if (distinctRatio < 0.3) return true;
+  }
+  return false;
+}
+
 export class DocsTutorAgent extends DurableObject<Env> {
   private sql: SqlStorage;
 
@@ -138,13 +153,19 @@ ${context}`;
       ...recent,
     ];
 
-    // 4. Call the LLM.
-    const chatResp = (await this.env.AI.run(CHAT_MODEL, {
-      messages,
-      max_tokens: 800,
-    })) as { response: string };
-
-    const reply = chatResp.response ?? "(no response)";
+    // 4. Call the LLM. Low temperature keeps answers grounded in the
+    // retrieved context and, in practice, sharply cuts down on the model
+    // occasionally degenerating into repetitive punctuation/garbage output.
+    // Even so, that degeneration does happen on rare occasions, so we
+    // detect it and retry once before giving up with a clean error message
+    // instead of showing the user gibberish.
+    let reply = await this.runChat(messages);
+    if (isGarbledOutput(reply)) {
+      reply = await this.runChat(messages);
+    }
+    if (isGarbledOutput(reply)) {
+      reply = "Sorry, I had trouble generating a response there — could you try rephrasing or asking again?";
+    }
 
     // Only surface sources the reply actually cites (e.g. via "[1]"). Greetings
     // and small talk never cite anything per the system prompt, so they should
@@ -156,5 +177,14 @@ ${context}`;
 
     this.saveMessage("assistant", reply, citedSources);
     return { reply, sources: citedSources };
+  }
+
+  private async runChat(messages: ChatMessage[]): Promise<string> {
+    const chatResp = (await this.env.AI.run(CHAT_MODEL, {
+      messages,
+      max_tokens: 800,
+      temperature: 0.3,
+    })) as { response: string };
+    return chatResp.response ?? "(no response)";
   }
 }
