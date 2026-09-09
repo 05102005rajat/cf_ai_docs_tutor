@@ -6,6 +6,25 @@ Seeded out-of-the-box with Cloudflare's own developer docs (Agents, Workers AI, 
 
 Originally built for the Cloudflare Software Engineer Intern (Summer 2026) `cf_ai_` take-home assignment; since hardened with a round of bug fixes (below).
 
+| | |
+|---|---|
+| **Infrastructure** | 1 Worker, 3 bindings, 0 third-party services |
+| **Retrieval** | top-5 Vectorize matches, 800-char chunks / 120 overlap |
+| **Corpus** | 12 seed pages across 6 Cloudflare products |
+| **Hardening** | 5 production-grade bugs found and fixed in one audit |
+
+## Why I built it
+
+Written for the Cloudflare SWE Intern take-home, but the question I actually
+wanted answered was whether a complete RAG stack could run on Cloudflare's edge
+with no external services at all: embeddings, vector store, generation and
+session state all inside one Worker.
+
+Seeding it with Cloudflare's own documentation was the test. If retrieval is
+genuinely grounded, an agent built on Workers AI should be able to explain
+Workers AI. If it is not, that shows up immediately as a wrong answer about the
+platform I can verify myself.
+
 ## Live demo
 
 **https://cf-ai-docs-tutor.05102005rajat.workers.dev**
